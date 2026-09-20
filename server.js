@@ -186,7 +186,7 @@ app.post('/repo/:owner/:repo/upload', requireAuth, upload.array('files'), async 
     for (const file of files) {
       cleanedFiles.push(file);
       if (file.size > maxFileSize) {
-        fs.unlinkSync(file.path);
+        for (const of of cleanedFiles) if (fs.existsSync(of.path)) fs.unlinkSync(of.path);
         return res.status(413).send(`El archivo ${file.originalname} supera el límite de 95MB.`);
       }
       const content = fs.readFileSync(file.path, 'base64');
