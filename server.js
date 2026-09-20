@@ -45,7 +45,7 @@ app.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
-    return res.status(400).send('Escribe tu usuario y tu contraseña/token.');
+    return res.status(400).render('login', { error: 'Escribe tu usuario y tu contraseña/token.' });
   }
 
   const token = password.trim();
@@ -56,7 +56,7 @@ app.post('/login', async (req, res) => {
     const userExpected = username.trim().toLowerCase();
     const userReal = user.login.toLowerCase();
     if (userExpected && userExpected !== userReal) {
-      return res.status(401).send(`El usuario "${username}" no coincide con el usuario del token (${user.login}).`);
+      return res.status(401).render('login', { error: `El usuario "${username}" no coincide con el usuario del token (${user.login}).` });
     }
 
     const { data: repos } = await octokit.rest.repos.listForAuthenticatedUser({
@@ -77,7 +77,10 @@ app.post('/login', async (req, res) => {
     res.redirect('/');
   } catch (err) {
     console.error('Error login:', err.message);
-    res.status(401).send('No se pudo conectar. Revisa tu usuario y token. Error: ' + err.message);
+    const m = (err && err.status === 401)
+      ? 'Credenciales inválidas: el token no existe, expiró o no tiene permiso. Crea un token clásico marcando la casilla "repo".'
+      : 'No se pudo conectar con GitHub. Revisa tu conexión y vuelve a intentar.';
+    res.status(401).render('login', { error: m });
   }
 });
 
@@ -94,6 +97,14 @@ function safeJoin(base, name) {
   const safe = segments.map(seg => seg.replace(/\.\.+/g, '_')).join('/');
   const baseClean = String(base || '').replace(/^\/+|\/+$/g, '').split(/[\\/]+/).filter(Boolean).map(seg => seg.replace(/\.\.+/g, '_')).join('/');
   return baseClean ? `${baseClean}/${safe}` : safe;
+}
+
+function friendlyError(err, action) {
+  const m = String(err && err.message || '');
+  if (err && err.status === 403) return `Tu token no tiene permiso para ${action}. Usa un token clásico con el permiso "repo", o permítele "Contents: Read and write".`;
+  if (err && err.status === 404) return `No se encontró el recurso al ${action}. Revisa que el repositorio exista o que tu token tenga acceso a él.`;
+  if (err && err.status === 409) return `Conflicto al ${action}: el repositorio ya existe o la referencia está bloqueada.`;
+  return `Error al ${action}: ${m}`;
 }
 
 app.post('/repo/create', requireAuth, async (req, res) => {
@@ -124,7 +135,7 @@ app.post('/repo/create', requireAuth, async (req, res) => {
     res.redirect(`/repo/${repo.owner.login}/${repo.name}/upload`);
   } catch (err) {
     console.error('Error creando repo:', err.message);
-    res.status(500).send('Error creando repositorio: ' + err.message);
+    res.status(500).render('error', { message: friendlyError(err, 'creando el repositorio') });
   }
 });
 
@@ -142,7 +153,7 @@ app.get('/repo/:owner/:repo', requireAuth, async (req, res) => {
       success: req.query.uploaded === '1'
     });
   } catch (err) {
-    res.status(404).send('No se pudo abrir el repositorio: ' + err.message);
+    res.status(404).render('error', { message: friendlyError(err, 'abrir el repositorio') });
   }
 });
 
@@ -167,19 +178,29 @@ app.post('/repo/:owner/:repo/upload', requireAuth, upload.array('files'), async 
     const { data: repoData } = await octokit.rest.repos.get({ owner, repo });
     const defaultBranch = repoData.default_branch || 'main';
 
-    const { data: refData } = await octokit.rest.git.getRef({
-      owner,
-      repo,
-      ref: `heads/${defaultBranch}`
-    });
-
-    const latestCommitSha = refData.object.sha;
-    const { data: commitData } = await octokit.rest.git.getCommit({
-      owner,
-      repo,
-      commit_sha: latestCommitSha
-    });
-    const baseTreeSha = commitData.tree.sha;
+    let latestCommitSha = null;
+    let baseTreeSha = null;
+    let repoHasCommits = true;
+    try {
+      const { data: refData } = await octokit.rest.git.getRef({
+        owner,
+        repo,
+        ref: `heads/${defaultBranch}`
+      });
+      latestCommitSha = refData.object.sha;
+      const { data: commitData } = await octokit.rest.git.getCommit({
+        owner,
+        repo,
+        commit_sha: latestCommitSha
+      });
+      baseTreeSha = commitData.tree.sha;
+    } catch (err) {
+      if (err.status === 404 || err.status === 409) {
+        repoHasCommits = false;
+      } else {
+        throw err;
+      }
+    }
 
     const treeItems = [];
     const maxFileSize = 95 * 1024 * 1024;
@@ -193,38 +214,59 @@ app.post('/repo/:owner/:repo/upload', requireAuth, upload.array('files'), async 
       const filePath = safeJoin(targetPath, file.originalname);
       treeItems.push({
         path: filePath,
-        mode: '100644',
-        type: 'blob',
-        content: content,
-        encoding: 'base64'
+        content: content
       });
     }
 
-    const { data: newTree } = await octokit.rest.git.createTree({
-      owner,
-      repo,
-      base_tree: baseTreeSha,
-      tree: treeItems
-    });
+    const commitMessageFull = commitMessage || `Subir ${files.length} archivo(s)`;
+    let headSha;
 
-    const { data: newCommit } = await octokit.rest.git.createCommit({
-      owner,
-      repo,
-      message: commitMessage || `Subir ${files.length} archivo(s)`,
-      tree: newTree.sha,
-      parents: [latestCommitSha],
-      author: {
-        name: req.session.user.login,
-        email: `${req.session.user.id}+${req.session.user.login}@users.noreply.github.com`
+    if (!repoHasCommits) {
+      for (const item of treeItems) {
+        await octokit.rest.repos.createOrUpdateFileContents({
+          owner,
+          repo,
+          path: item.path,
+          message: `${commitMessageFull} — ${item.path}`,
+          content: item.content,
+          committer: {
+            name: req.session.user.login,
+            email: `${req.session.user.id}+${req.session.user.login}@users.noreply.github.com`
+          }
+        });
       }
-    });
-
-    await octokit.rest.git.updateRef({
-      owner,
-      repo,
-      ref: `heads/${defaultBranch}`,
-      sha: newCommit.sha
-    });
+      const { data: refData } = await octokit.rest.git.getRef({
+        owner,
+        repo,
+        ref: `heads/${defaultBranch}`
+      });
+      headSha = refData.object.sha;
+    } else {
+      const { data: newTree } = await octokit.rest.git.createTree({
+        owner,
+        repo,
+        base_tree: baseTreeSha,
+        tree: treeItems.map(t => ({ ...t, mode: '100644', type: 'blob' }))
+      });
+      const { data: newCommit } = await octokit.rest.git.createCommit({
+        owner,
+        repo,
+        message: commitMessageFull,
+        tree: newTree.sha,
+        parents: [latestCommitSha],
+        author: {
+          name: req.session.user.login,
+          email: `${req.session.user.id}+${req.session.user.login}@users.noreply.github.com`
+        }
+      });
+      await octokit.rest.git.updateRef({
+        owner,
+        repo,
+        ref: `heads/${defaultBranch}`,
+        sha: newCommit.sha
+      });
+      headSha = newCommit.sha;
+    }
 
     const expectedPaths = treeItems.map(t => t.path);
 
@@ -238,11 +280,11 @@ app.post('/repo/:owner/:repo/upload', requireAuth, upload.array('files'), async 
       const { data: treeData } = await octokit.rest.git.getTree({
         owner,
         repo,
-        tree_sha: newCommit.sha,
+        tree_sha: checkRef.object.sha,
         recursive: '1'
       });
       const actualPaths = new Set((treeData.tree || []).map(t => t.path));
-      verified = checkRef.object.sha === newCommit.sha && expectedPaths.every(p => actualPaths.has(p));
+      verified = checkRef.object.sha === headSha && expectedPaths.every(p => actualPaths.has(p));
     } catch (err) {
       console.error('Error verificando subida:', err.message);
       verified = false;
@@ -252,7 +294,7 @@ app.post('/repo/:owner/:repo/upload', requireAuth, upload.array('files'), async 
       user: req.session.user,
       repo: { owner, name: repo },
       files: files.map(f => f.originalname),
-      commitSha: newCommit.sha.slice(0, 7),
+      commitSha: (headSha || '').slice(0, 7),
       branch: defaultBranch,
       verified,
       githubUrl: `https://github.com/${owner}/${repo}`,
@@ -263,7 +305,7 @@ app.post('/repo/:owner/:repo/upload', requireAuth, upload.array('files'), async 
     for (const file of cleanedFiles) {
       if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
     }
-    res.status(500).send('Error subiendo archivos: ' + err.message);
+    res.status(500).render('error', { message: friendlyError(err, 'subir los archivos') });
   }
 });
 
