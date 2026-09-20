@@ -58,6 +58,12 @@
             <a href="<%= githubTreeUrl %>" target="_blank" rel="noopener" class="btn btn-success btn-lg">
               <i class="bi bi-box-arrow-up-right me-1"></i>Comprobar en GitHub (ver online)
             </a>
+            <form method="POST" action="/repo/<%= repo.owner %>/<%= repo.name %>/publish">
+              <button type="submit" class="btn btn-outline-success w-100">
+                <i class="bi bi-globe me-1"></i>Lanzar a internet (GitHub Pages)
+              </button>
+            </form>
+            <div class="small text-muted">Publica tu web en <code>https://<%= repo.owner %>.github.io/<%= repo.name %>/</code></div>
           </div>
 
           <div class="card bg-light mb-4">

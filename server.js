@@ -405,6 +405,39 @@ app.get('/repo/:owner/:repo/upload', requireAuth, (req, res) => {
   res.render('upload', { user: req.session.user, repo: { owner, name: repo }, big: req.query.big === '1' });
 });
 
+app.post('/repo/:owner/:repo/publish', requireAuth, async (req, res) => {
+  const { owner, repo } = req.params;
+  const octokit = new Octokit({ auth: req.session.token });
+  const pagesUrl = `https://${owner}.github.io/${repo}/`;
+  try {
+    const { data: repoData } = await octokit.rest.repos.get({ owner, repo });
+    const branch = repoData.default_branch || 'main';
+    try {
+      await octokit.rest.repos.createPagesSite({ owner, repo, source: { branch, path: '/' } });
+    } catch (e) {
+      if (e.status !== 409) throw e;
+      await octokit.rest.repos.updateInformationAboutPagesSite({ owner, repo, source: { branch, path: '/' } }).catch(() => {});
+    }
+    res.send(`
+      <!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+      <title>Lanzado a internet</title></head><body class="bg-light d-flex align-items-center justify-content-center" style="min-height:100vh">
+      <div class="card shadow p-4 text-center" style="max-width:520px">
+        <h3 class="text-success"><i class="bi bi-globe me-2"></i>¡Lanzando a internet!</h3>
+        <p>Tu web estará en:</p>
+        <a href="${pagesUrl}" target="_blank" class="btn btn-success btn-lg w-100 mb-3">${pagesUrl}</a>
+        <p class="small text-muted">GitHub tarda 1-2 min en publicarla. Si es la primera vez y ves 404, espera y recarga.</p>
+        <div class="d-flex gap-2 justify-content-center">
+          <a href="/repo/${owner}/${repo}" class="btn btn-outline-secondary">Volver al repo</a>
+          <a href="https://github.com/${owner}/${repo}/settings/pages" target="_blank" class="btn btn-outline-dark">Ajustes Pages</a>
+        </div>
+      </div></body></html>
+    `);
+  } catch (err) {
+    res.status(500).render('error', { message: friendlyError(err, 'lanzar a internet (activar GitHub Pages)') + '<br><small>Revisa que tu token tenga permiso <code>repo</code> y que el repo tenga un <code>index.html</code> en la raíz.</small>' });
+  }
+});
+
 app.get('/api/folders', requireAuth, (req, res) => {
   try {
     const pIn = req.query.path || HOME;

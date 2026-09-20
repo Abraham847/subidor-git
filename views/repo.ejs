@@ -44,12 +44,19 @@
           <%= repo.private ? 'Privado' : 'Público' %>
         </span>
       </div>
-      <a href="/repo/<%= repo.owner %>/<%= repo.name %>/upload" class="btn btn-primary">
-        <i class="bi bi-upload me-1"></i>Subir archivos
-      </a>
-      <a href="/repo/<%= repo.owner %>/<%= repo.name %>/upload?pc=1" class="btn btn-warning text-dark">
-        <i class="bi bi-pc-display me-1"></i>Elegir carpeta de mi PC...
-      </a>
+      <div class="d-flex gap-2 flex-wrap">
+        <a href="/repo/<%= repo.owner %>/<%= repo.name %>/upload" class="btn btn-primary">
+          <i class="bi bi-upload me-1"></i>Subir archivos
+        </a>
+        <a href="/repo/<%= repo.owner %>/<%= repo.name %>/upload?pc=1" class="btn btn-warning text-dark">
+          <i class="bi bi-pc-display me-1"></i>Elegir carpeta de mi PC...
+        </a>
+        <form method="POST" action="/repo/<%= repo.owner %>/<%= repo.name %>/publish" class="d-inline">
+          <button type="submit" class="btn btn-success">
+            <i class="bi bi-globe me-1"></i>Lanzar a internet
+          </button>
+        </form>
+      </div>
     </div>
 
     <div class="card">
