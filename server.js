@@ -400,6 +400,18 @@ app.get('/repo/:owner/:repo', requireAuth, async (req, res) => {
   }
 });
 
+app.post('/repo/:owner/:repo/delete', requireAuth, async (req, res) => {
+  const { owner, repo } = req.params;
+  const octokit = new Octokit({ auth: req.session.token });
+  try {
+    await octokit.rest.repos.delete({ owner, repo });
+    req.session.repos = (req.session.repos || []).filter(r => r.full_name !== `${owner}/${repo}`);
+    res.redirect('/?deleted=1');
+  } catch (err) {
+    res.status(403).render('error', { message: friendlyError(err, 'eliminar el repositorio') + '<br><small>Tu token necesita el permiso <code>delete_repo</code>. Créalo en <a href="https://github.com/settings/tokens/new?scopes=repo,delete_repo&description=subidor-git-delete" target="_blank">github.com/settings/tokens/new</a> marcando <code>delete_repo</code>, o bórralo manual en <a href="https://github.com/' + owner + '/' + repo + '/settings" target="_blank">GitHub Settings</a>.</small>' });
+  }
+});
+
 app.get('/repo/:owner/:repo/upload', requireAuth, (req, res) => {
   const { owner, repo } = req.params;
   res.render('upload', { user: req.session.user, repo: { owner, name: repo }, big: req.query.big === '1' });
