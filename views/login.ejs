@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Subidor Git - Iniciar sesión</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <style>
+    body { background: #0f172a; min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .card { border: none; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+    .logo { width: 64px; height: 64px; border-radius: 14px; background: #d73a49; display: flex; align-items: center; justify-content: center; color: white; font-size: 34px; margin: 0 auto 1rem; }
+    .form-label { font-weight: 600; }
+    .form-control { border-radius: 8px; padding: 12px; }
+    .pass-wrap { position: relative; }
+    .pass-wrap .toggle { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #6c757d; }
+    .hint { background: #fff8e1; border: 1px solid #ffe082; border-radius: 10px; padding: 12px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="container" style="max-width: 420px;">
+    <div class="card p-4">
+      <div class="logo"><i class="bi bi-git"></i></div>
+      <h1 class="h4 text-center mb-1">Subidor Git</h1>
+      <p class="text-center text-muted mb-4">Sube tus proyectos a Git fácilmente</p>
+
+      <form method="POST" action="/login">
+        <div class="mb-3">
+          <label class="form-label">Nombre de usuario de Git</label>
+          <input type="text" class="form-control" name="username" placeholder="tu_usuario" required>
+        </div>
+
+        <div class="mb-3 pass-wrap">
+          <label class="form-label">Contraseña / Token</label>
+          <input type="password" class="form-control" id="password" name="password" placeholder="contraseña o token de acceso" required>
+          <button type="button" class="toggle" onclick="togglePass()"><i class="bi bi-eye" id="eyeIco"></i></button>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100 py-2">
+          <i class="bi bi-box-arrow-in-right me-1"></i> Conectar
+        </button>
+      </form>
+
+      <div class="hint mt-3">
+        <i class="bi bi-info-circle me-1"></i>
+        <strong>¿Qué es el "token"?</strong> GitHub ya no acepta tu contraseña normal. En su lugar necesitas un <strong>token de acceso</strong> (actúa como contraseña). Lo creas 1 sola vez aquí:
+        <br><br>
+        <a href="https://github.com/settings/tokens/new?scopes=repo,user&description=subidor-git" target="_blank" class="btn btn-sm btn-outline-dark w-100 mt-1">Crear mi token de acceso</a>
+        <ul class="mt-2 mb-0 ps-3" style="font-size:12px;">
+          <li>Marca la casilla <strong>repo</strong> (para poder ver y subir a tus proyectos).</li>
+          <li>Pulsa <strong>Generate token</strong> y copia el código <code>ghp_...</code>.</li>
+          <li>Pégalo aquí en el campo Contraseña / Token.</li>
+        </ul>
+      </div>
+
+      <% if (error) { %>
+        <div class="alert alert-danger mt-3 py-2 text-center"><%= error %></div>
+      <% } %>
+    </div>
+  </div>
+
+  <script>
+    function togglePass() {
+      const p = document.getElementById('password');
+      const i = document.getElementById('eyeIco');
+      const show = p.type === 'password';
+      p.type = show ? 'text' : 'password';
+      i.className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+    }
+  </script>
+</body>
+</html>

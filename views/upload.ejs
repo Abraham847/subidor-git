@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Subir archivos - <%= repo.name %></title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <style>
+    body { background: #f8f9fa; }
+    .drop-zone { border: 2px dashed #dee2e6; border-radius: 12px; padding: 2.5rem 3rem; text-align: center; transition: all 0.2s; cursor: pointer; }
+    .drop-zone:hover, .drop-zone.dragover { border-color: #667eea; background: #f0f2ff; }
+    .zone-buttons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+    .file-list-item { display: flex; align-items: center; padding: 0.75rem; background: white; border-radius: 8px; margin-bottom: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .file-list-item .file-icon { width: 40px; height: 40px; border-radius: 8px; background: #eef0f5; display: flex; align-items: center; justify-content: center; margin-right: 1rem; flex-shrink: 0; }
+    .file-list-item .rel-path { font-size: 12px; color: #6c757d; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="/"><i class="bi bi-github me-2"></i>Subidor Git</a>
+      <div class="navbar-nav ms-auto">
+        <a class="nav-link" href="/repo/<%= repo.owner %>/<%= repo.name %>"><i class="bi bi-arrow-left me-1"></i>Volver al repo</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container py-4">
+    <nav aria-label="breadcrumb" class="mb-4">
+      <ol class="breadcrumb bg-transparent p-0 mb-0">
+        <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Inicio</a></li>
+        <li class="breadcrumb-item"><a href="/repo/<%= repo.owner %>/<%= repo.name %>" class="text-decoration-none"><%= repo.name %></a></li>
+        <li class="breadcrumb-item active">Subir archivos</li>
+      </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="card shadow-sm">
+          <div class="card-header bg-white">
+            <h4 class="mb-0"><i class="bi bi-cloud-upload me-2"></i>Subir a <%= repo.name %></h4>
+          </div>
+          <div class="card-body">
+            <form id="uploadForm" enctype="multipart/form-data">
+              <div class="mb-3">
+                <label class="form-label fw-medium">Archivos o carpeta completa del proyecto</label>
+                <div class="drop-zone" id="dropZone">
+                  <i class="bi bi-cloud-arrow-up display-1 text-muted mb-3"></i>
+                  <h5 class="mb-2">Arrastra aquí tu proyecto completo</h5>
+                  <p class="text-muted mb-0">Máximo 95MB por archivo</p>
+                  <div class="zone-buttons">
+                    <button type="button" class="btn btn-light border" id="btnFiles">
+                      <i class="bi bi-files me-1"></i>Elegir archivos
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btnFolder">
+                      <i class="bi bi-folder2-open me-1"></i>Elegir carpeta completa del proyecto
+                    </button>
+                  </div>
+                  <input type="file" id="fileInput" name="files" multiple hidden accept="*/*">
+                  <input type="file" id="folderInput" multiple hidden webkitdirectory>
+                </div>
+                <div id="fileList" class="mt-3" style="display: none;"></div>
+              </div>
+
+              <div class="mb-3">
+                <label for="targetPath" class="form-label fw-medium">Carpeta destino (opcional)</label>
+                <input type="text" class="form-control" id="targetPath" name="targetPath" placeholder="ej: src/components, assets/images, docs/...">
+                <div class="form-text">Deja vacío para subir a la raíz del repositorio. Si eliges una carpeta completa, se mantiene su estructura interna.</div>
+              </div>
+
+              <div class="mb-3">
+                <label for="commitMessage" class="form-label fw-medium">Mensaje del commit</label>
+                <input type="text" class="form-control" id="commitMessage" name="commitMessage" placeholder="Subir archivos nuevos" required>
+              </div>
+
+              <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="/repo/<%= repo.owner %>/<%= repo.name %>" class="btn btn-outline-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+                  <span class="spinner-border spinner-border-sm me-2 d-none" id="spinner"></span>
+                  <span id="btnText">Subir archivos</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card mt-3 border-0 bg-transparent">
+          <div class="card-body text-center text-muted small">
+            <i class="bi bi-shield-lock me-1"></i>
+            Tu token se guarda solo en esta sesión de navegador
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const folderInput = document.getElementById('folderInput');
+    const fileList = document.getElementById('fileList');
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = document.getElementById('btnText');
+    const spinner = document.getElementById('spinner');
+    let files = [];
+
+    document.getElementById('btnFiles').addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+    document.getElementById('btnFolder').addEventListener('click', (e) => { e.stopPropagation(); folderInput.click(); });
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const items = (e.dataTransfer.items && Array.from(e.dataTransfer.items).filter(i => i.kind === 'file' && i.webkitGetAsEntry())) || [];
+      if (items.length) {
+        Promise.all(items.map(collectEntry)).then(entries => {
+          handleFiles(entries.map(x => x.file), false);
+        });
+      } else {
+        handleFiles(e.dataTransfer.files, false);
+      }
+    });
+    fileInput.addEventListener('change', (e) => { handleFiles(e.target.files, false); fileInput.value = ''; });
+    folderInput.addEventListener('change', (e) => { handleFiles(e.target.files, true); folderInput.value = ''; });
+
+    function collectEntry(entry) {
+      return new Promise((resolve, reject) => {
+        if (entry.isDirectory) {
+          const reader = entry.createReader();
+          const all = [];
+          const readNext = () => reader.readEntries(async (entries) => {
+            if (entries.length === 0) { resolve(Promise.all(all)); return; }
+            for (const en of entries) { all.push(collectEntry(en)); }
+            readNext();
+          }, reject);
+          readNext();
+        } else {
+          entry.file(f => resolve(f), reject);
+        }
+      });
+    }
+
+    function handleFiles(newFiles, fromFolder) {
+      const validFiles = Array.from(newFiles).filter(f => f.size <= 95 * 1024 * 1024);
+      if (validFiles.length !== newFiles.length) {
+        alert('Algunos archivos exceden 95MB y fueron ignorados');
+      }
+      const mapped = validFiles.map(f => ({
+        file: f,
+        rel: fromFolder && f.webkitRelativePath ? f.webkitRelativePath : f.name
+      }));
+      files = [...files, ...mapped];
+      renderFileList();
+      updateSubmit();
+    }
+
+    function renderFileList() {
+      if (files.length === 0) {
+        fileList.style.display = 'none';
+        return;
+      }
+      fileList.style.display = 'block';
+      const countFolders = new Set(files.map(x => x.rel.split('/')[0])).size;
+      fileList.innerHTML = `
+        <div class="alert alert-light border d-flex justify-content-between align-items-center mb-2 py-2">
+          <span><i class="bi bi-folder-check me-1"></i><strong>${files.length}</strong> archivo(s) de <strong>${countFolders}</strong> carpeta(s)</span>
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearAll()">Vaciar</button>
+        </div>
+      ` + files.map((x, i) => `
+        <div class="file-list-item">
+          <div class="file-icon">
+            <i class="bi ${getFileIcon(x.rel)} text-primary"></i>
+          </div>
+          <div class="flex-grow-1">
+            <div class="fw-medium">${x.file.name}</div>
+            <div class="rel-path"><i class="bi bi-folder me-1"></i>${x.rel}</div>
+            <small class="text-muted">${formatSize(x.file.size)}</small>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFile(${i})">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function removeFile(index) {
+      files.splice(index, 1);
+      renderFileList();
+      updateSubmit();
+    }
+
+    function clearAll() {
+      files = [];
+      renderFileList();
+      updateSubmit();
+    }
+
+    function getFileIcon(name) {
+      const ext = name.split('.').pop().toLowerCase();
+      const icons = {
+        js: 'bi-filetype-js', ts: 'bi-filetype-ts', jsx: 'bi-filetype-jsx', tsx: 'bi-filetype-tsx',
+        html: 'bi-filetype-html', css: 'bi-filetype-css', scss: 'bi-filetype-scss',
+        json: 'bi-filetype-json', md: 'bi-filetype-md', txt: 'bi-filetype-txt',
+        py: 'bi-filetype-py', java: 'bi-filetype-java', cpp: 'bi-filetype-cpp', c: 'bi-filetype-c',
+        php: 'bi-filetype-php', rb: 'bi-filetype-rb', go: 'bi-filetype-go', rs: 'bi-filetype-rs',
+        png: 'bi-filetype-png', jpg: 'bi-filetype-jpg', jpeg: 'bi-filetype-jpg', gif: 'bi-filetype-gif',
+        svg: 'bi-filetype-svg', pdf: 'bi-filetype-pdf', zip: 'bi-filetype-zip'
+      };
+      return icons[ext] || 'bi-file-earmark';
+    }
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function updateSubmit() {
+      const hasFiles = files.length > 0;
+      submitBtn.disabled = !hasFiles;
+      btnText.textContent = hasFiles ? `Subir ${files.length} archivo${files.length > 1 ? 's' : ''}` : 'Subir archivos';
+    }
+
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (files.length === 0) return;
+
+      submitBtn.disabled = true;
+      spinner.classList.remove('d-none');
+      btnText.textContent = 'Subiendo...';
+
+      const formData = new FormData();
+      files.forEach(x => formData.append('files', x.file, x.rel));
+      formData.append('commitMessage', document.getElementById('commitMessage').value);
+      formData.append('targetPath', document.getElementById('targetPath').value);
+
+      try {
+        const res = await fetch('/repo/<%= repo.owner %>/<%= repo.name %>/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (res.ok) {
+          window.location.href = '/repo/<%= repo.owner %>/<%= repo.name %>?uploaded=1';
+        } else {
+          const err = await res.text();
+          throw new Error(err);
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+        submitBtn.disabled = false;
+        spinner.classList.add('d-none');
+        btnText.textContent = files.length ? `Subir ${files.length} archivo${files.length > 1 ? 's' : ''}` : 'Subir archivos';
+      }
+    });
+  </script>
+</body>
+</html>

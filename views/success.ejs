@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>¡Subida exitosa! - GitHub Uploader</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <style>
+    body { background: #f8f9fa; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .success-icon { width: 100px; height: 100px; border-radius: 50%; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; animation: pop 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55); }
+    @keyframes pop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-6">
+        <div class="card shadow-sm text-center p-5">
+          <div class="success-icon">
+            <i class="bi bi-check-lg text-white" style="font-size: 3rem;"></i>
+          </div>
+          <h2 class="mb-3">¡Archivos subidos correctamente!</h2>
+          <p class="text-muted mb-4">
+            Se subieron <strong><%= files.length %></strong> archivo<%= files.length > 1 ? 's' : '' %> a 
+            <strong><%= repo.owner %>/<%= repo.name %></strong>
+          </p>
+
+          <% if (verified) { %>
+            <div class="alert alert-success d-flex align-items-start text-start mb-4" role="alert">
+              <i class="bi bi-patch-check-fill fs-4 me-2 mt-1"></i>
+              <div>
+                <strong>Verificado en GitHub:</strong> los archivos ya están en internet.
+                La rama <code><%= branch %></code> apunta al commit <code><%= commitSha %></code>
+                y todos los archivos están confirmados.
+              </div>
+            </div>
+          <% } else { %>
+            <div class="alert alert-warning d-flex align-items-start text-start mb-4" role="alert">
+              <i class="bi bi-exclamation-triangle-fill fs-4 me-2 mt-1"></i>
+              <div>
+                <strong>Subido, pero no se pudo verificar:</strong> compruábalo en GitHub por seguridad.
+              </div>
+            </div>
+          <% } %>
+
+          <div class="d-grid gap-2 mb-4">
+            <a href="<%= githubTreeUrl %>" target="_blank" rel="noopener" class="btn btn-success btn-lg">
+              <i class="bi bi-box-arrow-up-right me-1"></i>Comprobar en GitHub (ver online)
+            </a>
+          </div>
+
+          <div class="card bg-light mb-4">
+            <div class="card-body text-start">
+              <h6 class="mb-2"><i class="bi bi-list-ul me-2"></i>Archivos subidos:</h6>
+              <ul class="mb-0 small">
+                <% files.forEach(f => { %>
+                  <li><i class="bi bi-file-earmark text-primary me-2"></i><%= f %></li>
+                <% }) %>
+              </ul>
+            </div>
+          </div>
+
+          <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+            <a href="/repo/<%= repo.owner %>/<%= repo.name %>" class="btn btn-primary">
+              <i class="bi bi-folder2-open me-1"></i>Ver repositorio
+            </a>
+            <a href="/repo/<%= repo.owner %>/<%= repo.name %>/upload" class="btn btn-outline-primary">
+              <i class="bi bi-upload me-1"></i>Subir más archivos
+            </a>
+            <a href="/" class="btn btn-outline-secondary">
+              <i class="bi bi-house me-1"></i>Inicio
+            </a>
+          </div>
+
+          <hr class="my-4">
+          <small class="text-muted">Commit: <code><%= commitSha %></code></small>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
