@@ -17,6 +17,7 @@
       <a class="navbar-brand" href="/"><i class="bi bi-github me-2"></i>GitHub Uploader</a>
       <div class="navbar-nav ms-auto">
         <span class="nav-item nav-link text-muted small"><%= user.login %></span>
+        <a class="nav-link" href="/historial"><i class="bi bi-clock-history me-1"></i>Mi historial</a>
         <a class="nav-link" href="/logout"><i class="bi bi-box-arrow-right me-1"></i>Salir</a>
       </div>
     </div>
@@ -45,6 +46,9 @@
       </div>
       <a href="/repo/<%= repo.owner %>/<%= repo.name %>/upload" class="btn btn-primary">
         <i class="bi bi-upload me-1"></i>Subir archivos
+      </a>
+      <a href="/repo/<%= repo.owner %>/<%= repo.name %>/upload?pc=1" class="btn btn-warning text-dark">
+        <i class="bi bi-pc-display me-1"></i>Elegir carpeta de mi PC...
       </a>
     </div>
 

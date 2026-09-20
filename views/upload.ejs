@@ -6,6 +6,7 @@
   <title>Subir archivos - <%= repo.name %></title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <style>
     body { background: #f8f9fa; }
     .drop-zone { border: 2px dashed #dee2e6; border-radius: 12px; padding: 2.5rem 3rem; text-align: center; transition: all 0.2s; cursor: pointer; }
@@ -60,6 +61,12 @@
                   <input type="file" id="fileInput" name="files" multiple hidden accept="*/*">
                   <input type="file" id="folderInput" multiple hidden webkitdirectory>
                 </div>
+                <div class="mt-2">
+                  <button type="button" class="btn btn-sm btn-warning text-dark" id="btnPC" onclick="abrirExplorador()">
+                    <i class="bi bi-pc-display me-1"></i>Subir carpeta de mi PC (Escritorio...)
+                  </button>
+                  <span class="small text-muted ms-2">Sin buscarla con el navegador: la lees directo de tu usuario de Windows.</span>
+                </div>
                 <div id="fileList" class="mt-3" style="display: none;"></div>
               </div>
 
@@ -69,9 +76,38 @@
                 <div class="form-text">Deja vacío para subir a la raíz del repositorio. Si eliges una carpeta completa, se mantiene su estructura interna.</div>
               </div>
 
+              <div class="mb-3 border rounded p-3 bg-white">
+                <div class="form-check form-switch mb-2">
+                  <input class="form-check-input" type="checkbox" role="switch" id="bigMode" <%= (typeof big !== 'undefined' && big) ? 'checked' : '' %>>
+                  <label class="form-check-label fw-medium" for="bigMode">
+                    <i class="bi bi-box-seam me-1"></i>Proyecto grande — ignorar carpetas pesadas
+                  </label>
+                  <div class="form-text">Para proyectos grandes (celdas, videos, caché...). Se saltan automáticamente las carpetas pesadas y solo subes el código.</div>
+                </div>
+                <div id="ignoreWrap" class="<%= (typeof big !== 'undefined' && big) ? '' : 'd-none' %>">
+                  <label for="ignoreList" class="form-label small fw-semibold">Carpetas a ignorar (sépalas por coma)</label>
+                  <input type="text" class="form-control form-control-sm" id="ignoreList" name="ignore"
+                    placeholder="node_modules, dist, build, .git, uploads, tmp, cache, log, .next, vendor, bin, obj"
+                    value="node_modules, dist, build, .git, uploads, tmp, cache, *.log, .next, vendor, bin, obj">
+                  <div class="form-text small">Ejemplos útiles para proyectos grandes.</div>
+                </div>
+              </div>
+
               <div class="mb-3">
                 <label for="commitMessage" class="form-label fw-medium">Mensaje del commit</label>
                 <input type="text" class="form-control" id="commitMessage" name="commitMessage" placeholder="Subir archivos nuevos" required>
+              </div>
+
+              <div class="mb-3 border rounded p-3 bg-white">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                  <div class="fw-medium small">
+                    <i class="bi bi-robot me-1"></i>Guardia de IA (secuencia local, no sale de tu PC)
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-dark" id="scanBtn" disabled>
+                    <i class="bi bi-shield-lock me-1"></i>Revisar con IA
+                  </button>
+                </div>
+                <div id="scanReport" class="mt-2 small d-none"></div>
               </div>
 
               <div class="d-grid gap-2 d-md-flex justify-content-md-end">
@@ -95,6 +131,32 @@
     </div>
   </div>
 
+  <div class="modal fade" id="pcBrowserModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-pc-display me-1"></i>Explorar carpetas de tu PC</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="d-flex flex-wrap gap-2 mb-2" id="quickLinks"></div>
+          <div class="border rounded p-2 mb-2 bg-light small text-break" id="curPath">—</div>
+          <div id="foldersList" class="list-group"></div>
+          <div class="mt-2 small text-muted">
+            <i class="bi bi-shield-lock me-1"></i>Solo ves y lees tus propias carpetas de Windows. Todo se sube directo desde tu PC a GitHub.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <span class="me-auto small" id="folderCount">0 carpetas y 0 archivos</span>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-success" id="pcUploadBtn" disabled>
+            <i class="bi bi-git me-1"></i>Subir esta carpeta
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
@@ -104,6 +166,10 @@
     const btnText = document.getElementById('btnText');
     const spinner = document.getElementById('spinner');
     let files = [];
+
+    document.getElementById('bigMode').addEventListener('change', (e) => {
+      document.getElementById('ignoreWrap').classList.toggle('d-none', !e.target.checked);
+    });
 
     document.getElementById('btnFiles').addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
     document.getElementById('btnFolder').addEventListener('click', (e) => { e.stopPropagation(); folderInput.click(); });
@@ -154,6 +220,7 @@
       files = [...files, ...mapped];
       renderFileList();
       updateSubmit();
+      updateScanBtn();
     }
 
     function renderFileList() {
@@ -189,12 +256,15 @@
       files.splice(index, 1);
       renderFileList();
       updateSubmit();
+      updateScanBtn();
     }
 
     function clearAll() {
       files = [];
       renderFileList();
       updateSubmit();
+      updateScanBtn();
+      resetScan();
     }
 
     function getFileIcon(name) {
@@ -223,6 +293,69 @@
       btnText.textContent = hasFiles ? `Subir ${files.length} archivo${files.length > 1 ? 's' : ''}` : 'Subir archivos';
     }
 
+    const scanBtn = document.getElementById('scanBtn');
+    const scanReport = document.getElementById('scanReport');
+
+    function updateScanBtn() {
+      scanBtn.disabled = files.length === 0;
+      if (files.length === 0) resetScan();
+    }
+
+    function resetScan() {
+      scanReport.classList.add('d-none');
+      scanReport.innerHTML = '';
+      scanBtn.querySelector('i').className = 'bi bi-shield-lock me-1';
+    }
+
+    scanBtn.addEventListener('click', async () => {
+      scanBtn.disabled = true;
+      scanBtn.querySelector('i').className = 'bi bi-arrow-repeat me-1';
+      scanReport.classList.remove('d-none');
+      scanReport.innerHTML = '<div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Revisando con el guardia de IA (en tu PC)...</div>';
+      try {
+        const toScan = files.slice(0, 50);
+        const items = [];
+        for (const x of toScan) {
+          const head = x.file.slice(0, 1.5 * 1024 * 1024);
+          const buf = await head.arrayBuffer();
+          let bin = '';
+          const bytes = new Uint8Array(buf);
+          for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+          items.push({ name: x.rel, content: btoa(bin) });
+        }
+        const res = await fetch('/api/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files: items })
+        });
+        const data = await res.json();
+        const issues = (data.resultados || []).flatMap(r => r.issues.map(i => ({ archivo: r.archivo, ...i })));
+        if (issues.length === 0) {
+          scanReport.innerHTML = '<div class="text-success"><i class="bi bi-check-circle me-1"></i>Sin problemas detectados: seguro de subir.</div>';
+          scanBtn.querySelector('i').className = 'bi bi-shield-check me-1';
+        } else {
+          const bloqueos = issues.filter(i => i.severidad === 'bloqueo');
+          const avisos = issues.filter(i => i.severidad === 'aviso');
+          scanReport.innerHTML = `
+            ${bloqueos.length ? `<div class="text-danger mb-1"><i class="bi bi-x-octagon me-1"></i><strong>${bloqueos.length} bloqueo(s)</strong> — la subida será detenida automáticamente.</div>` : ''}
+            ${avisos.length ? `<div class="text-warning mb-1"><i class="bi bi-exclamation-triangle me-1"></i><strong>${avisos.length} aviso(s)</strong> — revisa antes de subir.</div>` : ''}
+            <ul class="mb-0">
+              ${issues.slice(0, 20).map(i => `<li class="small">${esc(i.archivo)}: ${esc(i.mensaje)}</li>`).join('')}
+              ${issues.length > 20 ? `<li class="small text-muted">… y ${issues.length - 20} más</li>` : ''}
+            </ul>`;
+          scanBtn.querySelector('i').className = 'bi bi-shield-exclamation me-1';
+        }
+      } catch (err) {
+        scanReport.innerHTML = '<div class="text-danger">No se pudo completar la revisión: ' + esc(err.message) + '</div>';
+      } finally {
+        scanBtn.disabled = false;
+      }
+    });
+
+    function esc(str) {
+      return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
     document.getElementById('uploadForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       if (files.length === 0) return;
@@ -235,6 +368,9 @@
       files.forEach(x => formData.append('files', x.file, x.rel));
       formData.append('commitMessage', document.getElementById('commitMessage').value);
       formData.append('targetPath', document.getElementById('targetPath').value);
+      if (document.getElementById('bigMode').checked) {
+        formData.append('ignore', document.getElementById('ignoreList').value);
+      }
 
       try {
         const res = await fetch('/repo/<%= repo.owner %>/<%= repo.name %>/upload', {
@@ -253,6 +389,102 @@
         submitBtn.disabled = false;
         spinner.classList.add('d-none');
         btnText.textContent = files.length ? `Subir ${files.length} archivo${files.length > 1 ? 's' : ''}` : 'Subir archivos';
+      }
+    });
+
+    let pcFolder = null;
+    const pcModalEl = document.getElementById('pcBrowserModal');
+    const foldersList = document.getElementById('foldersList');
+    const curPath = document.getElementById('curPath');
+    const quickLinks = document.getElementById('quickLinks');
+    const folderCount = document.getElementById('folderCount');
+    const pcUploadBtn = document.getElementById('pcUploadBtn');
+
+    function abrirExplorador() {
+      new bootstrap.Modal(pcModalEl).show();
+      cargarCarpeta('');
+    }
+
+    if (new URLSearchParams(window.location.search).get('pc') === '1') {
+      window.addEventListener('load', () => {
+        abrirExplorador();
+        setTimeout(() => {
+          const d = document.getElementById('quickLinks');
+          if (d) {
+            const btn = Array.from(d.querySelectorAll('button')).find(b => /Escritorio/i.test(b.textContent || ''));
+            if (btn) btn.click();
+          }
+        }, 700);
+      });
+    }
+
+    async function cargarCarpeta(p) {
+      foldersList.innerHTML = '<div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>Leyendo carpetas de tu PC...</div>';
+      pcUploadBtn.disabled = true;
+      pcFolder = null;
+      folderCount.textContent = '';
+      curPath.textContent = 'Cargando...';
+      try {
+        const res = await fetch('/api/folders?path=' + encodeURIComponent(p));
+        const data = await res.json();
+        if (!res.ok) { foldersList.innerHTML = `<div class="alert alert-danger small mb-0">${esc(data.error || 'Error al leer la carpeta.')}</div>`; return; }
+
+        curPath.textContent = data.path;
+        quickLinks.innerHTML = (data.quick || []).map(q => `
+          <button class="btn btn-sm btn-outline-secondary" onclick="cargarCarpeta(${JSON.stringify(q.path)})">
+            <i class="bi bi-folder me-1"></i>${esc(q.label)}
+          </button>
+        `).join('');
+
+        let ndirs = 0, nfiles = 0;
+        foldersList.innerHTML = (data.parent ? `
+          <button class="list-group-item list-group-item-action" onclick="cargarCarpeta(${JSON.stringify(data.parent)})">
+            <i class="bi bi-arrow-up-circle me-2 text-secondary"></i>Subir un nivel
+          </button>
+        ` : '') + data.entries.map(e => {
+          if (e.isDir) ndirs++; else nfiles++;
+          return e.isDir
+            ? `<button class="list-group-item list-group-item-action" onclick="cargarCarpeta(${JSON.stringify(e.path)})">
+                 <i class="bi bi-folder-fill me-2 text-warning"></i>${esc(e.name)}<span class="badge text-bg-light ms-1">carpeta</span>
+               </button>`
+            : `<div class="list-group-item"><i class="bi bi-file-earmark-text me-2 text-muted"></i>${esc(e.name)}<span class="small text-muted ms-2">${e.size < 1024 ? e.size + ' B' : (e.size / 1024).toFixed(1) + ' KB'}</span></div>`;
+        }).join('');
+
+        pcFolder = data.path;
+        folderCount.textContent = `${ndirs} carpetas y ${nfiles} archivos aquí`;
+        pcUploadBtn.disabled = false;
+      } catch (err) {
+        foldersList.innerHTML = `<div class="alert alert-danger small mb-0">${esc(err.message)}</div>`;
+      }
+    }
+
+    pcUploadBtn.addEventListener('click', async () => {
+      if (!pcFolder) return;
+      pcUploadBtn.disabled = true;
+      const original = pcUploadBtn.innerHTML;
+      pcUploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Subiendo carpeta...';
+      try {
+        const formData = new FormData();
+        formData.append('folderPath', pcFolder);
+        formData.append('commitMessage', document.getElementById('commitMessage').value || 'Subir carpeta');
+        formData.append('targetPath', document.getElementById('targetPath').value || '');
+        if (document.getElementById('bigMode').checked) {
+          formData.append('ignore', document.getElementById('ignoreList').value);
+        }
+        const res = await fetch('/repo/<%= repo.owner %>/<%= repo.name %>/upload/folder', {
+          method: 'POST',
+          body: formData
+        });
+        if (res.ok) {
+          window.location.href = '/repo/<%= repo.owner %>/<%= repo.name %>?uploaded=1';
+          return;
+        }
+        const err = await res.text();
+        throw new Error(err);
+      } catch (err) {
+        alert('Error: ' + err.message);
+        pcUploadBtn.disabled = false;
+        pcUploadBtn.innerHTML = original;
       }
     });
   </script>

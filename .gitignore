@@ -3,3 +3,5 @@ uploads/
 .env
 package-lock.json.tmp
 *.log
+data.db
+data.db-*

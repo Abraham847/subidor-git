@@ -26,6 +26,16 @@
             <strong><%= repo.owner %>/<%= repo.name %></strong>
           </p>
 
+          <% if (skippedCount > 0) { %>
+            <div class="alert alert-secondary d-flex align-items-start text-start mb-4" role="alert">
+              <i class="bi bi-slash-circle-fill fs-4 me-2 mt-1"></i>
+              <div>
+                <strong><%= skippedCount %> archivo(s) ignorados</strong> por estar en carpetas pesadas
+                (node_modules, dist, caché...). No se subieron para que el proyecto quede limpio.
+              </div>
+            </div>
+          <% } %>
+
           <% if (verified) { %>
             <div class="alert alert-success d-flex align-items-start text-start mb-4" role="alert">
               <i class="bi bi-patch-check-fill fs-4 me-2 mt-1"></i>
