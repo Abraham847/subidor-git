@@ -109,17 +109,36 @@
               <input type="text" class="form-control" name="description" placeholder="Qué hace tu proyecto...">
             </div>
             <div class="mb-3">
-              <label class="form-label fw-medium">Visibilidad</label>
-              <div class="d-flex gap-3">
-                <div class="form-check">
-                  <input class="form-check-input" type="radio" name="visibility" id="visPub" value="public" checked>
-                  <label class="form-check-label" for="visPub"><i class="bi bi-globe text-success me-1"></i>Público</label>
-                </div>
-                <div class="form-check">
-                  <input class="form-check-input" type="radio" name="visibility" id="visPriv" value="private">
-                  <label class="form-check-label" for="visPriv"><i class="bi bi-lock text-warning me-1"></i>Privado</label>
-                </div>
+              <label class="form-label fw-medium">Visibilidad del repositorio</label>
+              <div class="d-flex gap-2" role="radiogroup" aria-label="Visibilidad">
+                <input type="radio" name="visibility" id="visPub" value="public" class="d-none" checked>
+                <label for="visPub" class="vis-card flex-fill" style="cursor:pointer;">
+                  <div class="card h-100 mb-0">
+                    <div class="card-body text-center py-3">
+                      <i class="bi bi-globe2 fs-3 text-success"></i>
+                      <div class="fw-semibold mt-2">Público</div>
+                      <small class="text-muted">Lo ve cualquiera en internet</small>
+                    </div>
+                  </div>
+                </label>
+                <input type="radio" name="visibility" id="visPriv" value="private" class="d-none">
+                <label for="visPriv" class="vis-card flex-fill" style="cursor:pointer;">
+                  <div class="card h-100 mb-0">
+                    <div class="card-body text-center py-3">
+                      <i class="bi bi-lock-fill fs-3 text-warning"></i>
+                      <div class="fw-semibold mt-2">Privado</div>
+                      <small class="text-muted">Solo lo ves tú</small>
+                    </div>
+                  </div>
+                </label>
               </div>
+              <style>
+                .vis-card input { display: none; }
+                .vis-card .card { border: 2px solid #dee2e6; transition: all 0.15s; }
+                .vis-card:hover .card { border-color: #adb5bd; }
+                #visPub:checked + label .card { border-color: #28a745; background: #f0fdf4; box-shadow: 0 0 0 1px #28a745; }
+                #visPriv:checked + label .card { border-color: #e0a800; background: #fffbeb; box-shadow: 0 0 0 1px #e0a800; }
+              </style>
             </div>
             <div class="alert alert-info py-2 small mb-0">
               <i class="bi bi-info-circle me-1"></i>
